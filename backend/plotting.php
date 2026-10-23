@@ -112,6 +112,44 @@ try {
             respond(['success' => false, 'message' => 'Schedule is submitted and locked. You cannot modify enrollments until admin returns it.'], 403);
         }
 
+        $fullOfferingIds = [];
+        foreach ($offeringIds as $offeringId) {
+            $capSql = "SELECT s.section_id, s.max_capacity,
+                              COUNT(DISTINCT ss.student_id) AS current_enrolled
+                       FROM offering o
+                       LEFT JOIN schedule sc ON sc.schedule_id = o.schedule_id
+                       JOIN section s ON s.section_id = COALESCE(o.section_id, sc.section_id)
+                       LEFT JOIN (
+                           SELECT section_id, offering_id FROM offering WHERE section_id IS NOT NULL
+                           UNION
+                           SELECT sc2.section_id, o2.offering_id
+                           FROM offering o2
+                           INNER JOIN schedule sc2 ON sc2.schedule_id = o2.schedule_id
+                       ) so ON so.section_id = s.section_id
+                       LEFT JOIN plotting p ON p.offering_id = so.offering_id AND TRIM(p.student_id) != TRIM(:studentId)
+                       LEFT JOIN schedule_submission ss ON TRIM(ss.student_id) = TRIM(p.student_id) AND ss.is_submitted = TRUE
+                       WHERE o.offering_id = :offeringId
+                       GROUP BY s.section_id, s.max_capacity";
+            $capStmt = $conn->prepare($capSql);
+            $capStmt->execute([':offeringId' => $offeringId, ':studentId' => $studentId]);
+            $capRow = $capStmt->fetch(PDO::FETCH_ASSOC);
+            if ($capRow) {
+                $maxCap = (int) $capRow['max_capacity'];
+                $currEnrolled = (int) $capRow['current_enrolled'];
+                if ($currEnrolled >= $maxCap) {
+                    $fullOfferingIds[] = (int) $offeringId;
+                }
+            }
+        }
+
+        if (!empty($fullOfferingIds)) {
+            respond([
+                'success' => false,
+                'message' => 'One or more selected sections are full. No enrollment changes were saved.',
+                'offeringIds' => array_values(array_unique($fullOfferingIds))
+            ], 409);
+        }
+
         $conn->beginTransaction();
         try {
             $placeholders = implode(',', array_fill(0, count($offeringIds), '?'));

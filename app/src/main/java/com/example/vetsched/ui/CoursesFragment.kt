@@ -105,12 +105,55 @@ class CoursesFragment : Fragment() {
         super.onResume()
         if (_binding != null) {
             refreshNotificationIndicator()
+            fetchSubjects()
             CourseRepository.checkSubmissionStatus(requireContext()) { _ ->
                 if (isAdded && _binding != null) {
                     adapter.notifyDataSetChanged()
                 }
             }
+            refreshHandler.postDelayed(refreshRunnable, 5000)
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        refreshHandler.removeCallbacks(refreshRunnable)
+    }
+
+    private val refreshHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val refreshRunnable = object : Runnable {
+        override fun run() {
+            if (isAdded && _binding != null) {
+                fetchSubjectsSilently()
+            }
+            refreshHandler.postDelayed(this, 5000)
+        }
+    }
+
+    private fun fetchSubjectsSilently() {
+        RetrofitClient.instance.getSubjects().enqueue(object : Callback<List<Subject>> {
+            override fun onResponse(call: Call<List<Subject>>, response: Response<List<Subject>>) {
+                if (!isAdded || _binding == null) return
+                if (response.isSuccessful) {
+                    fetchedSubjects = response.body() ?: emptyList()
+                    checkAndMergeData()
+                }
+            }
+
+            override fun onFailure(call: Call<List<Subject>>, t: Throwable) {}
+        })
+
+        RetrofitClient.instance.getSections().enqueue(object : Callback<List<Section>> {
+            override fun onResponse(call: Call<List<Section>>, response: Response<List<Section>>) {
+                if (!isAdded || _binding == null) return
+                if (response.isSuccessful) {
+                    fetchedSections = response.body() ?: emptyList()
+                    checkAndMergeData()
+                }
+            }
+
+            override fun onFailure(call: Call<List<Section>>, t: Throwable) {}
+        })
     }
 
     private fun refreshNotificationIndicator() {
@@ -354,6 +397,7 @@ class CoursesFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        refreshHandler.removeCallbacks(refreshRunnable)
         _binding = null
     }
 

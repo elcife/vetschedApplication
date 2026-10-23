@@ -104,18 +104,25 @@ object CourseRepository {
         }
     }
 
-    fun enroll(course: EnrolledCourse, context: Context, callback: (Boolean) -> Unit) {
+data class EnrollResult(
+    val success: Boolean,
+    val message: String? = null,
+    val isFull: Boolean = false,
+    val fullOfferingIds: List<Int>? = null
+)
+
+    fun enroll(course: EnrolledCourse, context: Context, callback: (EnrollResult) -> Unit) {
         if (isSubmitted) {
             Toast.makeText(context, "Schedule is submitted to admin and locked", Toast.LENGTH_SHORT).show()
-            return callback(false)
+            return callback(EnrollResult(success = false, message = "Schedule is submitted to admin and locked"))
         }
 
         val sharedPref = context.getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
         val studentId = sharedPref.getString("studentId", null)
-            ?.let(InputValidation::normalizeStudentId) ?: return callback(false)
+            ?.let(InputValidation::normalizeStudentId) ?: return callback(EnrollResult(success = false, message = "Student ID not found"))
         val offeringIds = course.offeringIds
             ?.takeIf { it.isNotEmpty() && it.all { id -> id > 0 } && it.distinct().size == it.size }
-            ?: return callback(false)
+            ?: return callback(EnrollResult(success = false, message = "Invalid offering IDs"))
 
         val request = com.example.vetsched.api.models.EnrollmentRequest(
             studentId = studentId,
@@ -131,9 +138,25 @@ object CourseRepository {
                     if (response.isSuccessful && response.body()?.success == true) {
                         enrolledCourses.add(course)
                         saveToPrefs(context)
-                        callback(true)
+                        callback(EnrollResult(success = true))
+                    } else if (response.code() == 409) {
+                        val errorJson = response.errorBody()?.string()
+                        val parsed = try {
+                            Gson().fromJson(errorJson, com.example.vetsched.api.models.EnrollmentResponse::class.java)
+                        } catch (e: Exception) {
+                            null
+                        }
+                        val msg = parsed?.message ?: "One or more selected sections are full. No enrollment changes were saved."
+                        callback(EnrollResult(success = false, message = msg, isFull = true, fullOfferingIds = parsed?.offeringIds))
                     } else {
-                        callback(false)
+                        val errorJson = response.errorBody()?.string()
+                        val parsed = try {
+                            Gson().fromJson(errorJson, com.example.vetsched.api.models.EnrollmentResponse::class.java)
+                        } catch (e: Exception) {
+                            null
+                        }
+                        val msg = parsed?.message ?: response.body()?.message ?: "Enrollment failed"
+                        callback(EnrollResult(success = false, message = msg))
                     }
                 }
 
@@ -141,7 +164,7 @@ object CourseRepository {
                     call: retrofit2.Call<com.example.vetsched.api.models.AuthResponse>,
                     t: Throwable
                 ) {
-                    callback(false)
+                    callback(EnrollResult(success = false, message = t.localizedMessage ?: "Network error"))
                 }
             })
     }

@@ -66,3 +66,9 @@ data class SubmissionStatusResponse(
     @SerializedName("isSubmitted") val isSubmitted: Boolean,
     @SerializedName("submittedAt") val submittedAt: String? = null
 )
+
+data class EnrollmentResponse(
+    val success: Boolean,
+    val message: String? = null,
+    val offeringIds: List<Int>? = null
+)

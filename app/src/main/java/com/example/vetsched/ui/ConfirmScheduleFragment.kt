@@ -51,6 +51,16 @@ class ConfirmScheduleFragment : Fragment() {
         setupViewPager()
         setupTabs()
 
+        if (previewCourses.isNotEmpty()) {
+            val firstPreviewIndex = days.indexOfFirst { isPreviewDay(it) }
+            if (firstPreviewIndex != -1) {
+                binding.viewPager.post {
+                    binding.viewPager.setCurrentItem(firstPreviewIndex, false)
+                    updateTabsUI(firstPreviewIndex)
+                }
+            }
+        }
+
         binding.btnBack.setOnClickListener {
             findNavController().navigateUp()
         }
@@ -123,12 +133,22 @@ class ConfirmScheduleFragment : Fragment() {
             return
         }
 
-        CourseRepository.enroll(previewCourses[index], requireContext()) { success ->
-            if (success) {
+        CourseRepository.enroll(previewCourses[index], requireContext()) { result ->
+            if (!isAdded) return@enroll
+            if (result.success) {
                 Toast.makeText(context, "Enrolled in ${previewCourses[index].section}", Toast.LENGTH_SHORT).show()
                 findNavController().navigate(R.id.action_confirmScheduleFragment_to_scheduleFragment)
+            } else if (result.isFull) {
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setTitle("Section Full")
+                    .setMessage(result.message ?: "One or more selected sections are full. No enrollment changes were saved.")
+                    .setCancelable(false)
+                    .setPositiveButton("Choose Another Section") { _, _ ->
+                        findNavController().popBackStack(R.id.coursesFragment, false) || findNavController().navigateUp()
+                    }
+                    .show()
             } else {
-                Toast.makeText(context, "Enrollment failed", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, result.message ?: "Enrollment failed", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -164,9 +184,18 @@ class ConfirmScheduleFragment : Fragment() {
         }
     }
 
+    private fun isPreviewDay(dayName: String): Boolean {
+        if (previewCourses.isEmpty()) return false
+        val shortDay = getShortDay(dayName)
+        return previewCourses.any { pc ->
+            pc.day.split(",").map { it.trim() }.any { it.equals(shortDay, ignoreCase = true) }
+        }
+    }
+
     private fun updateTabsUI(selectedPosition: Int) {
         val whiteColor = Color.WHITE
         val textPrimaryColor = ContextCompat.getColor(requireContext(), R.color.vetsched_text_primary)
+        val primaryGreenColor = ContextCompat.getColor(requireContext(), R.color.vetsched_primary)
 
         val tabLayouts = listOf(
             binding.tabMon, binding.tabTue, binding.tabWed,
@@ -183,14 +212,27 @@ class ConfirmScheduleFragment : Fragment() {
 
         tabLayouts.forEachIndexed { index, layout ->
             if (index < tabLayouts.size) {
+                val dayName = days[index]
+                val hasPreview = isPreviewDay(dayName)
+
                 if (index == selectedPosition) {
-                    layout.setBackgroundResource(R.drawable.bg_date_selected)
+                    if (hasPreview) {
+                        layout.setBackgroundResource(R.drawable.bg_date_preview_selected)
+                    } else {
+                        layout.setBackgroundResource(R.drawable.bg_date_selected)
+                    }
                     labelViews[index].setTextColor(whiteColor)
                     dateViews[index].setTextColor(whiteColor)
                 } else {
-                    layout.setBackgroundResource(R.drawable.bg_date_unselected)
-                    labelViews[index].setTextColor(textPrimaryColor)
-                    dateViews[index].setTextColor(textPrimaryColor)
+                    if (hasPreview) {
+                        layout.setBackgroundResource(R.drawable.bg_date_preview_highlight)
+                        labelViews[index].setTextColor(primaryGreenColor)
+                        dateViews[index].setTextColor(primaryGreenColor)
+                    } else {
+                        layout.setBackgroundResource(R.drawable.bg_date_unselected)
+                        labelViews[index].setTextColor(textPrimaryColor)
+                        dateViews[index].setTextColor(textPrimaryColor)
+                    }
                 }
             }
         }
@@ -326,6 +368,8 @@ class ConfirmScheduleFragment : Fragment() {
                 }
                 
                 if (isPreview) {
+                    cardBinding.root.setBackgroundResource(R.drawable.bg_schedule_card_preview)
+                } else {
                     cardBinding.root.setBackgroundResource(R.drawable.bg_schedule_card)
                 }
 
@@ -366,6 +410,13 @@ class ConfirmScheduleFragment : Fragment() {
                 cardBinding.root.layoutParams = params
                 cardBinding.root.elevation = 4 * density
                 itemBinding.cardsContainer.addView(cardBinding.root)
+
+                if (isPreview) {
+                    val scrollY = (topMargin - 80 * density).coerceAtLeast(0f).toInt()
+                    itemBinding.root.post {
+                        itemBinding.root.smoothScrollTo(0, scrollY)
+                    }
+                }
             }
 
         }
