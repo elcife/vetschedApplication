@@ -69,6 +69,12 @@ class CoursesFragment : Fragment() {
         setupSearch()
         setupSwipeRefresh()
 
+        CourseRepository.checkSubmissionStatus(requireContext()) { _ ->
+            if (isAdded && _binding != null) {
+                adapter.notifyDataSetChanged()
+            }
+        }
+
         binding.btnSchedule.setOnClickListener {
             findNavController().navigate(R.id.action_coursesFragment_to_scheduleFragment)
         }
@@ -97,7 +103,14 @@ class CoursesFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        if (_binding != null) refreshNotificationIndicator()
+        if (_binding != null) {
+            refreshNotificationIndicator()
+            CourseRepository.checkSubmissionStatus(requireContext()) { _ ->
+                if (isAdded && _binding != null) {
+                    adapter.notifyDataSetChanged()
+                }
+            }
+        }
     }
 
     private fun refreshNotificationIndicator() {
@@ -163,10 +176,48 @@ class CoursesFragment : Fragment() {
     private var fetchedSubjects: List<Subject>? = null
     private var fetchedSections: List<Section>? = null
 
+    private fun saveCache(subjects: List<Subject>, sections: List<Section>) {
+        if (!isAdded) return
+        val sharedPref = requireContext().getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
+        val gson = Gson()
+        sharedPref.edit()
+            .putString("cached_subjects", gson.toJson(subjects))
+            .putString("cached_sections", gson.toJson(sections))
+            .apply()
+    }
+
+    private fun loadCache(): Boolean {
+        if (!isAdded) return false
+        val sharedPref = requireContext().getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
+        val gson = Gson()
+        val subjectsJson = sharedPref.getString("cached_subjects", null)
+        val sectionsJson = sharedPref.getString("cached_sections", null)
+
+        if (!subjectsJson.isNullOrBlank() && !sectionsJson.isNullOrBlank()) {
+            try {
+                val subjectType = object : com.google.gson.reflect.TypeToken<List<Subject>>() {}.type
+                val sectionType = object : com.google.gson.reflect.TypeToken<List<Section>>() {}.type
+                val cachedSubjects: List<Subject> = gson.fromJson(subjectsJson, subjectType) ?: emptyList()
+                val cachedSections: List<Section> = gson.fromJson(sectionsJson, sectionType) ?: emptyList()
+
+                if (cachedSubjects.isNotEmpty()) {
+                    fetchedSubjects = cachedSubjects
+                    fetchedSections = cachedSections
+                    mergeAndDisplayData(cachedSubjects, cachedSections, isFromCache = true)
+                    return true
+                }
+            } catch (e: Exception) {
+                // Ignore parse errors
+            }
+        }
+        return false
+    }
+
     private fun fetchSubjects() {
-        binding.swipeRefresh.isRefreshing = true
-        fetchedSubjects = null
-        fetchedSections = null
+        val hasCache = loadCache()
+        if (!hasCache) {
+            binding.swipeRefresh.isRefreshing = true
+        }
 
         RetrofitClient.instance.getSubjects().enqueue(object : Callback<List<Subject>> {
             override fun onResponse(call: Call<List<Subject>>, response: Response<List<Subject>>) {
@@ -174,14 +225,17 @@ class CoursesFragment : Fragment() {
                 if (response.isSuccessful) {
                     fetchedSubjects = response.body() ?: emptyList()
                     checkAndMergeData()
-                } else {
-                    handleFetchError("Subjects: ${response.code()}")
+                } else if (!hasCache) {
+                    binding.swipeRefresh.isRefreshing = false
                 }
             }
 
             override fun onFailure(call: Call<List<Subject>>, t: Throwable) {
                 if (!isAdded || _binding == null) return
-                handleFetchError("Network: ${t.message}")
+                binding.swipeRefresh.isRefreshing = false
+                if (!hasCache) {
+                    Toast.makeText(context, "Slow connection. Showing available data.", Toast.LENGTH_SHORT).show()
+                }
             }
         })
 
@@ -191,65 +245,60 @@ class CoursesFragment : Fragment() {
                 if (response.isSuccessful) {
                     fetchedSections = response.body() ?: emptyList()
                     checkAndMergeData()
-                } else {
-                    handleFetchError("Sections: ${response.code()}")
+                } else if (!hasCache) {
+                    binding.swipeRefresh.isRefreshing = false
                 }
             }
 
             override fun onFailure(call: Call<List<Section>>, t: Throwable) {
                 if (!isAdded || _binding == null) return
-                handleFetchError("Network: ${t.message}")
+                binding.swipeRefresh.isRefreshing = false
+                if (!hasCache) {
+                    Toast.makeText(context, "Slow connection. Showing available data.", Toast.LENGTH_SHORT).show()
+                }
             }
         })
     }
 
-    private fun handleFetchError(message: String) {
-        binding.swipeRefresh.isRefreshing = false
-        // Prevent partial data from being stuck
-        fetchedSubjects = fetchedSubjects ?: emptyList()
-        fetchedSections = fetchedSections ?: emptyList()
-        Toast.makeText(context, "Error: $message", Toast.LENGTH_LONG).show()
+    private fun checkAndMergeData() {
+        val subjects = fetchedSubjects ?: allSubjects.ifEmpty { null }
+        val sections = fetchedSections ?: return
+
+        if (subjects != null) {
+            mergeAndDisplayData(subjects, sections, isFromCache = false)
+        }
     }
 
-    private fun checkAndMergeData() {
-        val subjects = fetchedSubjects
-        val allSections = fetchedSections
+    private fun mergeAndDisplayData(subjects: List<Subject>, allSections: List<Section>, isFromCache: Boolean = false) {
+        if (!isAdded || _binding == null) return
 
-        if (subjects != null && allSections != null) {
-            binding.swipeRefresh.isRefreshing = false
-            
-            // Group sections by subjectId
-            val hiddenSectionIds = NotificationCenter.getHiddenSectionIds(
-                requireContext(),
-                selectedYearLevel
-            )
-            val sectionsMap = allSections
-                .filterNot { it.id in hiddenSectionIds }
-                .groupBy { it.subjectId }
-            
-            // Assign sections to subjects
-            subjects.forEach { subject ->
-                subject.sections = sectionsMap[subject.id] ?: emptyList()
-            }
-            
-            allSubjects = subjects
+        binding.swipeRefresh.isRefreshing = false
+
+        val sectionsMap = allSections.groupBy { it.subjectId }
+
+        subjects.forEach { subject ->
+            subject.sections = sectionsMap[subject.id] ?: emptyList()
+        }
+
+        allSubjects = subjects
+        if (!isFromCache) {
             NotificationCenter.initializeBaselineIfMissing(
                 requireContext(),
                 selectedYearLevel,
                 subjects,
                 allSections
             )
-            updateList()
-            
-            // Handle scrolling to target course if specified
-            val targetCode = arguments?.getString("targetCourseCode")
-            if (targetCode != null) {
-                val index = displayedSubjects.indexOfFirst { it.code == targetCode }
-                if (index != -1) {
-                    expandedPosition = index
-                    adapter.notifyItemChanged(index)
-                    binding.rvCourses.scrollToPosition(index)
-                }
+            saveCache(subjects, allSections)
+        }
+        updateList()
+
+        val targetCode = arguments?.getString("targetCourseCode")
+        if (targetCode != null) {
+            val index = displayedSubjects.indexOfFirst { it.code == targetCode }
+            if (index != -1) {
+                expandedPosition = index
+                adapter.notifyItemChanged(index)
+                binding.rvCourses.scrollToPosition(index)
             }
         }
     }
@@ -383,16 +432,10 @@ class CoursesFragment : Fragment() {
                     val remaining = section.remainingSeats ?: section.maxCapacity
                     sectionBinding.tvRemainingSeats.text = "$remaining seats left"
 
-                    val combinedDaysStr = allDays.joinToString(", ")
-                    val firstTimeRange = if (section.classes?.isNotEmpty() == true) {
-                         "${formatTime(section.classes[0].start)} - ${formatTime(section.classes[0].end)}"
-                    } else {
-                         "${formatTime(section.start)} - ${formatTime(section.end)}"
-                    }
-
                     val isEnrolled = CourseRepository.isEnrolled(subject.code, sectionBinding.tvSectionName.text.toString(), requireContext())
-                    val conflictingEnrolled = if (!isEnrolled) findConflictingEnrolledCourse(combinedDaysStr, firstTimeRange, requireContext()) else null
+                    val conflictingEnrolled = if (!isEnrolled) findConflictingEnrolledCourse(subject.code, section, requireContext()) else null
                     val isFull = (section.remainingSeats ?: 1) <= 0
+                    val isSubmitted = CourseRepository.isSubmitted
 
                     if (isEnrolled) {
                         sectionBinding.btnEnroll.visibility = View.VISIBLE
@@ -400,6 +443,13 @@ class CoursesFragment : Fragment() {
                         sectionBinding.btnEnroll.text = "Enrolled"
                         sectionBinding.btnEnroll.isEnabled = false
                         sectionBinding.btnEnroll.setBackgroundColor(Color.LTGRAY)
+                        sectionBinding.cardSectionContainer.setBackgroundResource(R.drawable.bg_profile_card)
+                    } else if (isSubmitted) {
+                        sectionBinding.btnEnroll.visibility = View.VISIBLE
+                        sectionBinding.tvConflictPill.visibility = View.GONE
+                        sectionBinding.btnEnroll.text = "Submitted"
+                        sectionBinding.btnEnroll.isEnabled = false
+                        sectionBinding.btnEnroll.setBackgroundColor(Color.parseColor("#BDBDBD"))
                         sectionBinding.cardSectionContainer.setBackgroundResource(R.drawable.bg_profile_card)
                     } else if (!section.isOpen) {
                         sectionBinding.btnEnroll.visibility = View.VISIBLE
@@ -418,7 +468,8 @@ class CoursesFragment : Fragment() {
                     } else if (conflictingEnrolled != null) {
                         sectionBinding.btnEnroll.visibility = View.GONE
                         sectionBinding.tvConflictPill.visibility = View.VISIBLE
-                        sectionBinding.tvConflictPill.text = "Conflict with \"${conflictingEnrolled.courseName},${conflictingEnrolled.section}\""
+                        val conflictCourseTitle = conflictingEnrolled.courseName.ifBlank { conflictingEnrolled.courseCode }
+                        sectionBinding.tvConflictPill.text = "Conflict with \"$conflictCourseTitle, ${conflictingEnrolled.section}\""
                         sectionBinding.tvConflictPill.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#B3261E"))
                         sectionBinding.cardSectionContainer.setBackgroundColor(Color.parseColor("#C2C9BF"))
                     } else {
@@ -431,7 +482,19 @@ class CoursesFragment : Fragment() {
                     }
 
                     sectionBinding.btnEnroll.setOnClickListener {
-                        val previewSlots = mutableListOf<EnrolledCourse>()
+                        CourseRepository.checkSubmissionStatus(requireContext()) { isSubmitted ->
+                            if (!isAdded || _binding == null) return@checkSubmissionStatus
+                            if (isSubmitted) {
+                                adapter.notifyDataSetChanged()
+                                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                                    .setTitle("Schedule Submitted")
+                                    .setMessage("Your schedule has already been submitted to the admin and is locked. You cannot make any enrollments until the admin returns your schedule.")
+                                    .setPositiveButton("OK", null)
+                                    .show()
+                                return@checkSubmissionStatus
+                            }
+
+                            val previewSlots = mutableListOf<EnrolledCourse>()
                         
                         section.classes?.forEach { comp ->
                             comp.days.forEach { day ->
@@ -495,6 +558,7 @@ class CoursesFragment : Fragment() {
                         }
                     }
                 }
+                }
             }
 
             holder.itemBinding.courseHeader.setOnClickListener {
@@ -511,18 +575,48 @@ class CoursesFragment : Fragment() {
             return days.joinToString(", ")
         }
 
-        private fun findConflictingEnrolledCourse(dayStr: String, timeRange: String, context: Context): com.example.vetsched.data.EnrolledCourse? {
-            if (dayStr.isBlank() || dayStr == "No days assigned") return null
+        private fun findConflictingEnrolledCourse(
+            subjectCode: String,
+            section: Section,
+            context: Context
+        ): com.example.vetsched.data.EnrolledCourse? {
             val enrolledList = CourseRepository.getAllEnrolled(context)
-            val newDays = parseDays(dayStr)
-            val newTime = parseRange(timeRange) ?: return null
+            if (enrolledList.isEmpty()) return null
 
-            for (enrolled in enrolledList) {
-                val enrolledDays = parseDays(enrolled.day)
-                if (newDays.any { day -> enrolledDays.any { it.equals(day, ignoreCase = true) } }) {
-                    val enrolledTime = parseRange(enrolled.timeRange) ?: continue
-                    if (overlaps(newTime, enrolledTime)) {
-                        return enrolled
+            val classes = section.classes
+            if (!classes.isNullOrEmpty()) {
+                for (comp in classes) {
+                    val formattedTime = "${formatTime(comp.start)} - ${formatTime(comp.end)}"
+                    val compTime = parseRange(formattedTime) ?: continue
+                    val compDays = comp.days
+
+                    for (enrolled in enrolledList) {
+                        if (enrolled.courseCode.equals(subjectCode, ignoreCase = true)) continue
+
+                        val enrolledDays = parseDays(enrolled.day)
+                        if (compDays.any { day -> enrolledDays.any { it.equals(day, ignoreCase = true) } }) {
+                            val enrolledTime = parseRange(enrolled.timeRange) ?: continue
+                            if (overlaps(compTime, enrolledTime)) {
+                                return enrolled
+                            }
+                        }
+                    }
+                }
+            } else {
+                val formattedDays = getSafeDayString(section)
+                val formattedTime = "${formatTime(section.start)} - ${formatTime(section.end)}"
+                val newDays = parseDays(formattedDays)
+                val newTime = parseRange(formattedTime) ?: return null
+
+                for (enrolled in enrolledList) {
+                    if (enrolled.courseCode.equals(subjectCode, ignoreCase = true)) continue
+
+                    val enrolledDays = parseDays(enrolled.day)
+                    if (newDays.any { day -> enrolledDays.any { it.equals(day, ignoreCase = true) } }) {
+                        val enrolledTime = parseRange(enrolled.timeRange) ?: continue
+                        if (overlaps(newTime, enrolledTime)) {
+                            return enrolled
+                        }
                     }
                 }
             }
