@@ -10,10 +10,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="28dp"
         android:text="My Profile"
         android:textColor="@color/vetsched_text_primary"
-        android:textSize="24sp"
+        android:textSize="26sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -95,7 +95,7 @@
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="10dp"
                 android:text="ACCOUNT INFORMATION"
-                android:textColor="@color/vetsched_text_hint"
+                android:textColor="@color/vetsched_primary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
@@ -158,7 +158,7 @@
                     android:layout_weight="1"
                     android:layout_marginStart="4dp"
                     android:text="ACADEMIC DETAILS"
-                    android:textColor="@color/vetsched_text_hint"
+                    android:textColor="@color/vetsched_primary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -202,7 +202,7 @@
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="10dp"
                 android:text="SECURITY"
-                android:textColor="@color/vetsched_text_hint"
+                android:textColor="@color/vetsched_primary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
@@ -223,7 +223,7 @@
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="10dp"
                 android:text="SCHEDULE"
-                android:textColor="@color/vetsched_text_hint"
+                android:textColor="@color/vetsched_primary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
@@ -238,13 +238,30 @@
                 app:cornerRadius="16dp" />
 
             <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="12dp"
+                android:text="FREQUENTLY ASKED QUESTIONS"
+                android:textColor="@color/vetsched_primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/faqContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="10dp"
                 android:text="SESSION"
-                android:textColor="@color/vetsched_text_hint"
+                android:textColor="@color/vetsched_primary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 

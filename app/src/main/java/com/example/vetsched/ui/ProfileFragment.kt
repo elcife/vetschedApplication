@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -38,6 +40,7 @@ class ProfileFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         BottomNavigationInsets.apply(binding.bottomNav)
+        setupFaqs()
 
         val sharedPref = requireActivity().getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
         val userName = sharedPref.getString("userName", "User").orEmpty()
@@ -102,6 +105,158 @@ class ProfileFragment : Fragment() {
 
         binding.swipeRefresh.setOnRefreshListener {
             binding.swipeRefresh.isRefreshing = false
+        }
+    }
+
+    private fun setupFaqs() {
+        val categories = listOf(
+            "SCHEDULING" to listOf(
+                "I submitted my schedule but need to change it. What should I do?" to
+                    "A submitted schedule is locked while it is under administrator review. Visit the Veterinary Medicine Teachers' Lounge and ask a teacher to help you request that it be returned. Once it is returned, you can revise it in VETSCHED.",
+                "How can I check my classes for today?" to
+                    "Open Schedule from the bottom navigation and select today's day. Your scheduled classes, meeting times, and sections will be shown there.",
+                "What should I review before submitting my schedule?" to
+                    "Check that you selected the correct subjects and sections, and review each class day and time for overlaps. On the Schedule screen, tap Submit and review the confirmation before completing the submission.",
+                "I selected the wrong section. Can I change it before submitting?" to
+                    "Open Courses and select the section you want instead. VETSCHED will ask you to confirm replacing your current section selection. Review the new section's days and times before confirming.",
+                "How do I remove a class from my schedule?" to
+                    "Open Schedule, select the class, and choose the removal option in the confirmation dialog. Removing a class also removes the other class components in that same section bundle. Review the confirmation carefully before proceeding.",
+                "The administrator returned my schedule. What should I do next?" to
+                    "After the schedule is returned, VETSCHED unlocks it for changes. Review the administrator's instructions, make the necessary updates in Courses or Schedule, and submit it again when it is ready."
+            ),
+            "COURSES & ENROLLMENT" to listOf(
+                "How do I add a subject to my schedule?" to
+                    "Open Courses, find the subject, and expand it to view its sections. Select an open section with available seats, review its class days and times, and confirm the enrollment.",
+                "The section I need is full or closed. What can I do?" to
+                    "Full means no seats are currently available. VETSCHED does not automatically change a section from Full to Closed; Closed is a separate status indicating that enrollment is not open for that section. Review other sections for one marked open with seats available. If you must take that specific section, ask your teacher or the administrator whether another option is available.",
+                "Why does VETSCHED show a schedule conflict?" to
+                    "The selected section overlaps in time with a class already on your schedule. Compare the class days and times, then choose a section that does not overlap. If no alternative works, consult your teacher.",
+                "Can I enroll in more classes after I submit my schedule?" to
+                    "No. Enrollment changes are locked while your schedule is submitted to the administrator. Ask a teacher at the Veterinary Medicine Teachers' Lounge about having the schedule returned; you can make changes after it is returned."
+            ),
+            "ACCOUNT & ACCESS" to listOf(
+                "How do I update my year level?" to
+                    "Open Profile, tap your year level, select the correct year, and wait for the confirmation that the update succeeded.",
+                "I forgot my password. How can I reset it?" to
+                    "On the login screen, select Forgot password and enter your registered school email address. Request the verification code, then enter the code and your new password. If you cannot access that email, contact your school administrator.",
+                "How do I change my current password?" to
+                    "Open Profile and select Change password. Enter your current password, then enter and confirm a new password that meets the on-screen requirements.",
+                "My name, student ID, or email is incorrect. How can I fix it?" to
+                    "These account details cannot be edited in VETSCHED. Contact your school administrator to request a correction."
+            ),
+            "NOTIFICATIONS" to listOf(
+                "How will I know if a subject, section, class time, or room changes?" to
+                    "When VETSCHED detects an update for the year level you are viewing, an indicator appears beside the notification bell. Tap the bell to review added or removed subjects and sections, section availability changes, class schedule or room changes, and schedule conflicts. For schedule changes, the alert shows the previous and updated class details, including the room when that information is available. Check the bell regularly for updates."
+            ),
+            "APP & TROUBLESHOOTING" to listOf(
+                "My selected classes are not appearing on Schedule. What should I check?" to
+                    "Confirm that the enrollment was completed in Courses and that you are viewing the correct day in Schedule. If the class still does not appear, reopen Schedule to refresh its information. Contact your teacher or the administrator if the problem continues.",
+                "What happens if I select Clear my schedule?" to
+                    "This removes all classes from your schedule and cannot be undone in the app. If your schedule has already been submitted, it must first be returned by the administrator. Use this option only when you intend to clear the entire schedule."
+            )
+        )
+
+        var expandedCategory: Pair<LinearLayout, LinearLayout>? = null
+        var expandedQuestion: Pair<TextView, TextView>? = null
+
+        categories.forEachIndexed { categoryIndex, (title, questions) ->
+            val categoryView = layoutInflater.inflate(
+                R.layout.item_faq_category,
+                binding.faqContainer,
+                false
+            )
+            val categoryHeader =
+                categoryView.findViewById<LinearLayout>(R.id.faqCategoryHeader)
+            val categoryTitle =
+                categoryView.findViewById<TextView>(R.id.faqCategoryTitle)
+            val categoryChevron =
+                categoryView.findViewById<TextView>(R.id.faqCategoryChevron)
+            val questionContainer =
+                categoryView.findViewById<LinearLayout>(R.id.faqQuestions)
+
+            categoryTitle.text = title
+            categoryHeader.contentDescription = "Show $title"
+
+            questions.forEach { (question, answer) ->
+                val questionView = layoutInflater.inflate(
+                    R.layout.item_faq,
+                    questionContainer,
+                    false
+                )
+                val questionHeader =
+                    questionView.findViewById<LinearLayout>(R.id.faqHeader)
+                val questionTitle =
+                    questionView.findViewById<TextView>(R.id.faqQuestion)
+                val answerView =
+                    questionView.findViewById<TextView>(R.id.faqAnswer)
+                val questionChevron =
+                    questionView.findViewById<TextView>(R.id.faqChevron)
+                questionTitle.text = question
+                answerView.text = answer
+                questionHeader.contentDescription = question
+                questionHeader.setOnClickListener {
+                    val shouldExpand = answerView.visibility != View.VISIBLE
+                    expandedQuestion?.let { (previousAnswer, previousChevron) ->
+                        if (previousAnswer != answerView) {
+                            previousAnswer.visibility = View.GONE
+                            previousChevron.rotation = 0f
+                        }
+                    }
+                    answerView.visibility = if (shouldExpand) View.VISIBLE else View.GONE
+                    questionChevron.animate()
+                        .rotation(if (shouldExpand) 180f else 0f)
+                        .setDuration(180)
+                        .start()
+                    expandedQuestion =
+                        if (shouldExpand) answerView to questionChevron else null
+                }
+                questionContainer.addView(questionView)
+            }
+
+            val initiallyExpanded = categoryIndex == 0
+            questionContainer.visibility =
+                if (initiallyExpanded) View.VISIBLE else View.GONE
+            categoryChevron.rotation = if (initiallyExpanded) 180f else 0f
+            categoryHeader.contentDescription =
+                if (initiallyExpanded) "Hide $title" else "Show $title"
+            if (initiallyExpanded) expandedCategory = questionContainer to categoryHeader
+
+            categoryHeader.setOnClickListener {
+                val shouldExpand = questionContainer.visibility != View.VISIBLE
+                expandedCategory?.let { (previousCategory, previousHeader) ->
+                    if (previousCategory != questionContainer) {
+                        previousCategory.visibility = View.GONE
+                        previousHeader.findViewById<TextView>(R.id.faqCategoryChevron)
+                            .rotation = 0f
+                        val previousTitle =
+                            previousHeader.findViewById<TextView>(R.id.faqCategoryTitle).text
+                        previousHeader.contentDescription = "Show $previousTitle"
+                        expandedQuestion?.let { (answerView, questionChevron) ->
+                            answerView.visibility = View.GONE
+                            questionChevron.rotation = 0f
+                        }
+                        expandedQuestion = null
+                    }
+                }
+                if (!shouldExpand) {
+                    expandedQuestion?.let { (answerView, questionChevron) ->
+                        answerView.visibility = View.GONE
+                        questionChevron.rotation = 0f
+                    }
+                    expandedQuestion = null
+                }
+                questionContainer.visibility =
+                    if (shouldExpand) View.VISIBLE else View.GONE
+                categoryChevron.animate()
+                    .rotation(if (shouldExpand) 180f else 0f)
+                    .setDuration(180)
+                    .start()
+                categoryHeader.contentDescription =
+                    if (shouldExpand) "Hide $title" else "Show $title"
+                expandedCategory =
+                    if (shouldExpand) questionContainer to categoryHeader else null
+            }
+            binding.faqContainer.addView(categoryView)
         }
     }
 
