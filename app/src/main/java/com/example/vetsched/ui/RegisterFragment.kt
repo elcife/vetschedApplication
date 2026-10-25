@@ -66,7 +66,16 @@ class RegisterFragment : Fragment() {
 
         binding.btnCreateAccount.setOnClickListener {
             val params = validatedRegistrationParams() ?: return@setOnClickListener
-            registerDirectly(params)
+            requestRegistrationOtp(params)
+        }
+
+        binding.btnVerifyRegistrationOtp.setOnClickListener {
+            verifyOtp()
+        }
+
+        binding.btnResendRegistrationOtp.setOnClickListener {
+            val params = pendingRegistrationParams ?: validatedRegistrationParams() ?: return@setOnClickListener
+            requestRegistrationOtp(params)
         }
 
         binding.btnEditRegistration.setOnClickListener {
@@ -178,9 +187,57 @@ class RegisterFragment : Fragment() {
         textView.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     }
 
-    private fun registerDirectly(params: Map<String, String>) {
+    private var pendingRegistrationParams: Map<String, String>? = null
+
+    private fun requestRegistrationOtp(params: Map<String, String>) {
+        pendingRegistrationParams = params
         setRequestLoading(true)
-        RetrofitClient.instance.register(params).enqueue(object : Callback<AuthResponse> {
+        RetrofitClient.instance.requestRegistrationOtp(params).enqueue(object : Callback<AuthResponse> {
+            override fun onResponse(call: Call<AuthResponse>, response: Response<AuthResponse>) {
+                if (!isAdded || _binding == null) return
+                setRequestLoading(false)
+                val result = response.body() ?: parseError(response)
+                if (response.isSuccessful && result?.success == true) {
+                    binding.registrationOtpPanel.visibility = View.VISIBLE
+                    binding.btnCreateAccount.visibility = View.GONE
+                    setRegistrationFieldsEnabled(false)
+                    startResendCooldown(60)
+                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                } else {
+                    val errorMsg = result?.message ?: "Could not send verification code"
+                    when (result?.errorField) {
+                        "student_id" -> _binding?.tilIDNumber?.error = errorMsg
+                        "email" -> _binding?.tilEmail?.error = errorMsg
+                        "year_level" -> _binding?.tilYearLevel?.error = errorMsg
+                        else -> Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
+            override fun onFailure(call: Call<AuthResponse>, t: Throwable) {
+                if (!isAdded || _binding == null) return
+                setRequestLoading(false)
+                Toast.makeText(context, "Network error: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun verifyOtp() {
+        val otpCode = binding.etRegistrationOtp.text.toString().trim()
+        val email = pendingRegistrationParams?.get("email") ?: binding.etEmail.text.toString().trim()
+
+        if (otpCode.length != 6) {
+            binding.etRegistrationOtp.error = "Enter a valid 6-digit verification code"
+            return
+        }
+
+        val params = mapOf(
+            "email" to email,
+            "otp" to otpCode
+        )
+
+        setRequestLoading(true)
+        RetrofitClient.instance.verifyRegistrationOtp(params).enqueue(object : Callback<AuthResponse> {
             override fun onResponse(call: Call<AuthResponse>, response: Response<AuthResponse>) {
                 if (!isAdded || _binding == null) return
                 setRequestLoading(false)
@@ -189,13 +246,8 @@ class RegisterFragment : Fragment() {
                     Toast.makeText(context, "Account created successfully! You can now log in.", Toast.LENGTH_LONG).show()
                     findNavController().navigate(R.id.action_registerFragment_to_loginFragment)
                 } else {
-                    val errorMsg = result?.message ?: "Registration failed"
-                    when (result?.errorField) {
-                        "student_id" -> _binding?.tilIDNumber?.error = errorMsg
-                        "email" -> _binding?.tilEmail?.error = errorMsg
-                        "year_level" -> _binding?.tilYearLevel?.error = errorMsg
-                        else -> Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
-                    }
+                    val errorMsg = result?.message ?: "Invalid verification code"
+                    Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                 }
             }
 

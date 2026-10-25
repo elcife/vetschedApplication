@@ -23,6 +23,7 @@ import com.example.vetsched.api.models.Section
 import com.example.vetsched.data.CourseRepository
 import com.example.vetsched.data.EnrolledCourse
 import com.example.vetsched.databinding.FragmentCoursesBinding
+import com.example.vetsched.util.BottomNavigationInsets
 import com.example.vetsched.databinding.ItemCourseBinding
 import com.example.vetsched.databinding.ItemCourseSectionBinding
 import com.example.vetsched.notifications.NotificationCenter

@@ -18,6 +18,7 @@ import com.example.vetsched.data.EnrolledCourse
 import com.example.vetsched.databinding.FragmentConfirmScheduleBinding
 import com.example.vetsched.databinding.ItemDayScheduleBinding
 import com.example.vetsched.databinding.ItemScheduleCardBinding
+import com.example.vetsched.util.DailyMotivation
 import com.google.gson.Gson
 
 class ConfirmScheduleFragment : Fragment() {
@@ -293,7 +294,7 @@ class ConfirmScheduleFragment : Fragment() {
             fun bind(dayTitle: String) {
                 itemBinding.tvDayTitle.text = dayTitle
                 itemBinding.tvDailyMotivation.text =
-                    DailyMotivation.forDay(itemBinding.root.context, dayTitle)
+                     DailyMotivation.forDay(itemBinding.root.context, dayTitle)
                 itemBinding.cardsContainer.removeAllViews()
 
                 val enrolled = CourseRepository.getCoursesForDay(dayTitle, itemBinding.root.context).toMutableList()
@@ -414,7 +415,7 @@ class ConfirmScheduleFragment : Fragment() {
                 if (isPreview) {
                     val scrollY = (topMargin - 80 * density).coerceAtLeast(0f).toInt()
                     itemBinding.root.post {
-                        itemBinding.root.smoothScrollTo(0, scrollY)
+                        itemBinding.root.scrollTo(0, scrollY)
                     }
                 }
             }

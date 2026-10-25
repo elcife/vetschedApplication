@@ -21,6 +21,8 @@ import com.example.vetsched.databinding.ItemDayScheduleBinding
 import com.example.vetsched.databinding.ItemScheduleCardBinding
 import com.example.vetsched.notifications.NotificationCenter
 import com.example.vetsched.notifications.NotificationInbox
+import com.example.vetsched.util.BottomNavigationInsets
+import com.example.vetsched.util.DailyMotivation
 
 class ScheduleFragment : Fragment() {
 

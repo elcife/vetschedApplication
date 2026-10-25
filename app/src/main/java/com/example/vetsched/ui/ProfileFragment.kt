@@ -15,6 +15,7 @@ import com.example.vetsched.api.models.AuthResponse
 import com.example.vetsched.data.CourseRepository
 import com.example.vetsched.databinding.DialogChangePasswordBinding
 import com.example.vetsched.databinding.FragmentProfileBinding
+import com.example.vetsched.util.BottomNavigationInsets
 import com.example.vetsched.util.InputValidation
 import retrofit2.Call
 import retrofit2.Callback
