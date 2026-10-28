@@ -30,4 +30,20 @@ class ScheduleTimeRangeTest {
         assertNull(ScheduleTimeRange.parse("TBA"))
         assertNull(ScheduleTimeRange.parse("25:00 - 26:00"))
     }
+
+    @Test
+    fun adjacentClassesDoNotConflictAtBoundary() {
+        val r1 = ScheduleTimeRange.parse("7:00 AM - 9:00 AM")
+        val r2 = ScheduleTimeRange.parse("9:00 AM - 11:00 AM")
+        val overlapping = r1!!.startMinutes < r2!!.endMinutes && r2.startMinutes < r1.endMinutes
+        org.junit.Assert.assertFalse(overlapping)
+    }
+
+    @Test
+    fun overlappingClassesConflictWithinTimeframe() {
+        val r1 = ScheduleTimeRange.parse("7:00 AM - 9:00 AM")
+        val r2 = ScheduleTimeRange.parse("8:30 AM - 10:00 AM")
+        val overlapping = r1!!.startMinutes < r2!!.endMinutes && r2.startMinutes < r1.endMinutes
+        org.junit.Assert.assertTrue(overlapping)
+    }
 }
