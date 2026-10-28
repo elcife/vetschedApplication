@@ -77,7 +77,7 @@ class ConfirmScheduleFragment : Fragment() {
                 binding.btnExportPdf.visibility = View.GONE
                 binding.btnYesSubmit.isEnabled = !isSubmitted
                 binding.btnYesSubmit.setBackgroundColor(if (isSubmitted) Color.parseColor("#B0B0B0") else Color.parseColor("#77C647"))
-                binding.btnYesSubmit.text = if (isSubmitted) "Submitted to Admin (Locked)" else "Confirm Enrollment"
+                binding.btnYesSubmit.text = if (isSubmitted) "Submitted to Admin (Locked)" else "Confirm Plotted Schedule"
 
                 if (!isSubmitted) {
                     binding.btnYesSubmit.setOnClickListener {
