@@ -56,6 +56,7 @@
 
     <string name="year_level">Year Level</string>
     <string name="select_year_level">Select Year Level</string>
+    <string name="select_semester">Select Semester</string>
     <string name="accept_terms">I have read and agree to the Terms of Service.</string>
     <string name="read_terms">Read Terms of Service</string>
     <string name="terms_required">Please accept the Terms of Service before continuing.</string>
@@ -76,9 +77,15 @@
         <item>@string/year_4</item>
         <item>@string/year_5</item>
     </string-array>
+    <string name="semester_1">1st Semester</string>
+    <string name="semester_2">2nd Semester</string>
+    <string-array name="semesters">
+        <item>@string/semester_1</item>
+        <item>@string/semester_2</item>
+    </string-array>
     <plurals name="course_count">
-        <item quantity="one">%1$d course - Year %2$d</item>
-        <item quantity="other">%1$d courses - Year %2$d</item>
+        <item quantity="one">%1$d course - Year %2$d - Sem %3$d</item>
+        <item quantity="other">%1$d courses - Year %2$d - Sem %3$d</item>
     </plurals>
     <plurals name="section_count">
         <item quantity="one">%1$d section</item>

@@ -136,6 +136,12 @@ class CoursesFragment : Fragment() {
             override fun onResponse(call: Call<List<Subject>>, response: Response<List<Subject>>) {
                 if (!isAdded || _binding == null) return
                 if (response.isSuccessful) {
+                    response.headers()["X-Active-Semester"]?.toIntOrNull()
+                        ?.takeIf { it in 1..2 }
+                        ?.let {
+                            requireContext().getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
+                                .edit().putInt("userSemester", it).apply()
+                        }
                     fetchedSubjects = response.body() ?: emptyList()
                     checkAndMergeData()
                 }
@@ -258,10 +264,7 @@ class CoursesFragment : Fragment() {
     }
 
     private fun fetchSubjects() {
-        val hasCache = loadCache()
-        if (!hasCache) {
-            binding.swipeRefresh.isRefreshing = true
-        }
+        binding.swipeRefresh.isRefreshing = true
 
         RetrofitClient.instance.getSubjects().enqueue(object : Callback<List<Subject>> {
             override fun onResponse(call: Call<List<Subject>>, response: Response<List<Subject>>) {
@@ -269,14 +272,16 @@ class CoursesFragment : Fragment() {
                 if (response.isSuccessful) {
                     fetchedSubjects = response.body() ?: emptyList()
                     checkAndMergeData()
-                } else if (!hasCache) {
+                } else {
                     binding.swipeRefresh.isRefreshing = false
+                    loadCache()
                 }
             }
 
             override fun onFailure(call: Call<List<Subject>>, t: Throwable) {
                 if (!isAdded || _binding == null) return
                 binding.swipeRefresh.isRefreshing = false
+                val hasCache = loadCache()
                 if (!hasCache) {
                     Toast.makeText(context, "Slow connection. Showing available data.", Toast.LENGTH_SHORT).show()
                 }
@@ -289,7 +294,7 @@ class CoursesFragment : Fragment() {
                 if (response.isSuccessful) {
                     fetchedSections = response.body() ?: emptyList()
                     checkAndMergeData()
-                } else if (!hasCache) {
+                } else {
                     binding.swipeRefresh.isRefreshing = false
                 }
             }
@@ -297,9 +302,6 @@ class CoursesFragment : Fragment() {
             override fun onFailure(call: Call<List<Section>>, t: Throwable) {
                 if (!isAdded || _binding == null) return
                 binding.swipeRefresh.isRefreshing = false
-                if (!hasCache) {
-                    Toast.makeText(context, "Slow connection. Showing available data.", Toast.LENGTH_SHORT).show()
-                }
             }
         })
     }
@@ -318,21 +320,33 @@ class CoursesFragment : Fragment() {
 
         binding.swipeRefresh.isRefreshing = false
 
+        val sharedPref = requireContext().getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
+        val activeSemester = if (!isFromCache) {
+            subjects.firstOrNull()?.semester
+                ?.takeIf { it in 1..2 }
+                ?: sharedPref.getInt("userSemester", 1).coerceIn(1, 2)
+        } else {
+            sharedPref.getInt("userSemester", 1).coerceIn(1, 2)
+        }
+        if (!isFromCache && subjects.isNotEmpty()) {
+            sharedPref.edit().putInt("userSemester", activeSemester).apply()
+        }
+        val semesterSubjects = subjects.filter { it.semester == activeSemester }
         val sectionsMap = allSections.groupBy { it.subjectId }
 
-        subjects.forEach { subject ->
+        semesterSubjects.forEach { subject ->
             subject.sections = sectionsMap[subject.id] ?: emptyList()
         }
 
-        allSubjects = subjects
+        allSubjects = semesterSubjects
         if (!isFromCache) {
             NotificationCenter.initializeBaselineIfMissing(
                 requireContext(),
                 selectedYearLevel,
-                subjects,
+                semesterSubjects,
                 allSections
             )
-            saveCache(subjects, allSections)
+            saveCache(semesterSubjects, allSections)
         }
         updateList()
 
@@ -373,11 +387,13 @@ class CoursesFragment : Fragment() {
         }
         
         displayedSubjects.addAll(filtered)
+        val displaySemester = filtered.firstOrNull()?.semester ?: allSubjects.firstOrNull()?.semester ?: 1
         binding.tvFoundCount.text = resources.getQuantityString(
             R.plurals.course_count,
             filtered.size,
             filtered.size,
-            selectedYearLevel
+            selectedYearLevel,
+            displaySemester
         )
         binding.tvEmptyState.text = if (query.isEmpty()) {
             "No courses available for Year $selectedYearLevel"

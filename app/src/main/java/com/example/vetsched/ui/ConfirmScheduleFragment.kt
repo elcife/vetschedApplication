@@ -74,7 +74,6 @@ class ConfirmScheduleFragment : Fragment() {
 
             if (previewCourses.isNotEmpty()) {
                 // Mode A: Section Enrollment preview (from CoursesFragment)
-                binding.btnExportPdf.visibility = View.GONE
                 binding.btnYesSubmit.isEnabled = !isSubmitted
                 binding.btnYesSubmit.setBackgroundColor(if (isSubmitted) Color.parseColor("#B0B0B0") else Color.parseColor("#77C647"))
                 binding.btnYesSubmit.text = if (isSubmitted) "Submitted to Admin (Locked)" else "Confirm Plotted Schedule"
@@ -90,7 +89,6 @@ class ConfirmScheduleFragment : Fragment() {
                 }
             } else {
                 // Mode B: Schedule Submission & Review (from ScheduleFragment)
-                binding.btnExportPdf.visibility = View.GONE
 
                 binding.btnYesSubmit.isEnabled = true
                 binding.btnYesSubmit.setBackgroundColor(Color.parseColor("#5C6D4F"))
@@ -414,8 +412,8 @@ class ConfirmScheduleFragment : Fragment() {
 
                 if (isPreview) {
                     val scrollY = (topMargin - 80 * density).coerceAtLeast(0f).toInt()
-                    itemBinding.root.post {
-                        itemBinding.root.scrollTo(0, scrollY)
+                    itemBinding.nestedScrollView.post {
+                        itemBinding.nestedScrollView.scrollTo(0, scrollY)
                     }
                 }
             }

@@ -98,22 +98,57 @@ function getOrCreateInstructorId(PDO $conn, string $name): int {
     return (int) $insert->fetchColumn();
 }
 
+function getActiveSemester(PDO $conn): int {
+    $semester = $_GET['semester'] ?? $_GET['sem'] ?? null;
+    if ($semester !== null && $semester !== '' && in_array((int)$semester, [1, 2], true)) {
+        return (int)$semester;
+    }
+    try {
+        $conn->exec('CREATE TABLE IF NOT EXISTS system_settings (key VARCHAR(50) PRIMARY KEY, value VARCHAR(255))');
+        $stmt = $conn->query("SELECT value FROM system_settings WHERE key = 'active_semester' LIMIT 1");
+        $val = $stmt->fetchColumn();
+        if ($val !== false && $val !== null && in_array((int)$val, [1, 2], true)) {
+            return (int)$val;
+        }
+    } catch (Exception $e) {
+        // Ignore
+    }
+    try {
+        $semStmt = $conn->query('SELECT semester FROM account WHERE semester IS NOT NULL LIMIT 1');
+        $accountSem = $semStmt->fetchColumn();
+        if ($accountSem !== false && $accountSem !== null && in_array((int)$accountSem, [1, 2], true)) {
+            return (int)$accountSem;
+        }
+    } catch (Exception $e) {
+        // Ignore
+    }
+    return 1;
+}
+
 $resource = $_GET['resource'] ?? '';
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if ($resource === 'subjects') {
-            $rows = $conn->query('SELECT subject_id AS id, TRIM(subject_code) AS code, subject_name AS name, year_level AS "yearLevel", semester FROM subject ORDER BY year_level, semester, subject_id')->fetchAll(PDO::FETCH_ASSOC);
+            $semester = getActiveSemester($conn);
+            header('X-Active-Semester: ' . $semester);
+
+            $stmt = $conn->prepare('SELECT subject_id AS id, TRIM(subject_code) AS code, subject_name AS name, year_level AS "yearLevel", semester FROM subject WHERE semester = :semester ORDER BY year_level, semester, subject_id');
+            $stmt->execute([':semester' => (int)$semester]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             respond($rows);
         }
 
         if ($resource === 'sections') {
+            $semester = getActiveSemester($conn);
+
             $sql = "SELECT s.section_id AS id, s.section_name AS type,
                            s.is_open AS \"isOpen\",
                            s.subject_id AS \"subjectId\",
                            s.max_capacity AS \"maxCapacity\",
                            COUNT(DISTINCT ss.student_id) AS \"enrollmentCount\"
                     FROM section s
+                    JOIN subject sub ON sub.subject_id = s.subject_id AND sub.semester = :semester
                     LEFT JOIN (
                         SELECT section_id, offering_id FROM offering WHERE section_id IS NOT NULL
                         UNION
@@ -125,7 +160,9 @@ try {
                     LEFT JOIN schedule_submission ss ON TRIM(ss.student_id) = TRIM(p.student_id) AND ss.is_submitted = TRUE
                     GROUP BY s.section_id, s.section_name, s.is_open, s.subject_id, s.max_capacity
                     ORDER BY s.section_id";
-            $rows = $conn->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+            $stmt = $conn->prepare($sql);
+            $stmt->execute([':semester' => (int)$semester]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $classSql = "SELECT sc.section_id,
                                o.class_type AS \"classType\", sc.day_of_the_week AS day,
@@ -136,11 +173,14 @@ try {
                         FROM schedule sc
                         JOIN offering o ON o.schedule_id = sc.schedule_id
                             AND (o.section_id = sc.section_id OR o.section_id IS NULL)
+                        JOIN subject sub ON sub.subject_id = o.subject_id AND sub.semester = :semester2
                         LEFT JOIN instructor i ON i.instructor_id = o.instructor_id
                         LEFT JOIN room r ON r.room_id = o.room_id
                         WHERE sc.section_id IS NOT NULL";
+            $slotStmt = $conn->prepare($classSql);
+            $slotStmt->execute([':semester2' => (int)$semester]);
             $slotsBySection = [];
-            foreach ($conn->query($classSql)->fetchAll(PDO::FETCH_ASSOC) as $slot) {
+            foreach ($slotStmt->fetchAll(PDO::FETCH_ASSOC) as $slot) {
                 $slotsBySection[(int) $slot['section_id']][] = $slot;
             }
 
@@ -218,6 +258,28 @@ try {
     }
 
     $data = requestData();
+
+    $postedSem = $data['semester'] ?? $data['sem'] ?? $_POST['semester'] ?? $_POST['sem'] ?? null;
+    $action = $data['action'] ?? $_POST['action'] ?? '';
+    if (($postedSem !== null && $postedSem !== '') || in_array($action, ['setSemester', 'endSemester', 'set_semester', 'end_semester'], true)) {
+        $semester = (int) ($postedSem ?? $data['sem'] ?? 2);
+        if (!in_array($semester, [1, 2], true)) {
+            $semester = 2;
+        }
+        $conn->beginTransaction();
+        $clearSchedules = $conn->prepare('DELETE FROM plotting');
+        $clearSchedules->execute();
+        $clearSubs = $conn->prepare('DELETE FROM schedule_submission');
+        $clearSubs->execute();
+        $conn->exec('CREATE TABLE IF NOT EXISTS system_settings (key VARCHAR(50) PRIMARY KEY, value VARCHAR(255))');
+        $stmtSet = $conn->prepare('INSERT INTO system_settings (key, value) VALUES (\'active_semester\', :semester) ON CONFLICT (key) DO UPDATE SET value = :semester');
+        $stmtSet->execute([':semester' => (string)$semester]);
+        $stmtAcc = $conn->prepare('UPDATE account SET semester = :semester');
+        $stmtAcc->execute([':semester' => $semester]);
+        $conn->commit();
+        respond(['success' => true, 'semester' => $semester, 'updated' => $stmtAcc->rowCount()]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         respond(['success' => false, 'message' => 'POST required'], 405);
     }
@@ -456,10 +518,15 @@ try {
         $conn->beginTransaction();
         $clearSchedules = $conn->prepare('DELETE FROM plotting');
         $clearSchedules->execute();
-        $stmt = $conn->prepare('UPDATE account SET semester = :semester');
-        $stmt->execute([':semester' => $semester]);
+        $clearSubs = $conn->prepare('DELETE FROM schedule_submission');
+        $clearSubs->execute();
+        $conn->exec('CREATE TABLE IF NOT EXISTS system_settings (key VARCHAR(50) PRIMARY KEY, value VARCHAR(255))');
+        $stmtSet = $conn->prepare('INSERT INTO system_settings (key, value) VALUES (\'active_semester\', :semester) ON CONFLICT (key) DO UPDATE SET value = :semester');
+        $stmtSet->execute([':semester' => (string)$semester]);
+        $stmtAcc = $conn->prepare('UPDATE account SET semester = :semester');
+        $stmtAcc->execute([':semester' => $semester]);
         $conn->commit();
-        respond(['success' => true, 'semester' => $semester, 'updated' => $stmt->rowCount()]);
+        respond(['success' => true, 'semester' => $semester, 'updated' => $stmtAcc->rowCount()]);
     }
 
     if ($resource === 'sections' && array_key_exists('classes', $data)) {

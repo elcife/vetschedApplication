@@ -7,7 +7,8 @@ data class User(
     @SerializedName("first_name") val firstName: String,
     @SerializedName("last_name") val lastName: String,
     val email: String,
-    @SerializedName("year_level") val yearLevel: Int? = null
+    @SerializedName("year_level") val yearLevel: Int? = null,
+    val semester: Int? = null
 )
 
 data class Subject(
@@ -15,6 +16,7 @@ data class Subject(
     val code: String,
     val name: String,
     val yearLevel: Int,
+    val semester: Int = 1,
     @Transient var sections: List<Section> = emptyList()
 )
 
