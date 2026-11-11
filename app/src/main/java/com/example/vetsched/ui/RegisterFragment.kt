@@ -74,8 +74,15 @@ class RegisterFragment : Fragment() {
         }
 
         binding.btnResendRegistrationOtp.setOnClickListener {
-            val params = pendingRegistrationParams ?: validatedRegistrationParams() ?: return@setOnClickListener
-            requestRegistrationOtp(params)
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Email Verification")
+                .setMessage("Did u check your spam folder?")
+                .setPositiveButton("Resend Anyway") { _, _ ->
+                    val params = pendingRegistrationParams ?: validatedRegistrationParams() ?: return@setPositiveButton
+                    requestRegistrationOtp(params)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
         binding.btnEditRegistration.setOnClickListener {

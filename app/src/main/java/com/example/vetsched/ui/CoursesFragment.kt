@@ -259,7 +259,7 @@ class CoursesFragment : Fragment() {
             } catch (e: Exception) {
                 // Ignore parse errors
             }
-        }
+         }
         return false
     }
 

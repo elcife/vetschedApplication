@@ -430,13 +430,27 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="@string/didnt_receive_code"
-                        android:textColor="@color/vetsched_text_hint"
-                        android:textSize="13sp" />
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/didnt_receive_code"
+                            android:textColor="@color/vetsched_text_hint"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/check_spam_folder_hint"
+                            android:textColor="@color/vetsched_text_hint"
+                            android:textSize="11sp" />
+                    </LinearLayout>
 
                     <Button
                         android:id="@+id/btnResendRegistrationOtp"

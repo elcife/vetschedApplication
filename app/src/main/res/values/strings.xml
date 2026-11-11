@@ -25,6 +25,7 @@
     <string name="resend_otp_cooldown">Resend in 60s</string>
     <string name="resend_otp">Resend code</string>
     <string name="resend_otp_countdown">Resend in %1$ds</string>
+    <string name="check_spam_folder_hint">Check your spam folder if code does not appear</string>
     <string name="new_password_label">New password</string>
     <string name="new_password_hint">At least 10 characters</string>
     <string name="confirm_password_label">Confirm new password</string>
