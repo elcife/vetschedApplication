@@ -47,6 +47,7 @@ class CoursesFragment : Fragment() {
     private var allSubjects = listOf<Subject>()
     private val displayedSubjects = mutableListOf<Subject>()
     private lateinit var adapter: CoursesAdapter
+    private var serverActiveSemester: Int? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -138,9 +139,10 @@ class CoursesFragment : Fragment() {
                 if (response.isSuccessful) {
                     response.headers()["X-Active-Semester"]?.toIntOrNull()
                         ?.takeIf { it in 1..2 }
-                        ?.let {
+                        ?.let { semester ->
+                            serverActiveSemester = semester
                             requireContext().getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
-                                .edit().putInt("userSemester", it).apply()
+                                .edit().putInt("userSemester", semester).apply()
                         }
                     fetchedSubjects = response.body() ?: emptyList()
                     checkAndMergeData()
@@ -270,6 +272,20 @@ class CoursesFragment : Fragment() {
             override fun onResponse(call: Call<List<Subject>>, response: Response<List<Subject>>) {
                 if (!isAdded || _binding == null) return
                 if (response.isSuccessful) {
+                    val serverSemester = response.headers()["X-Active-Semester"]?.toIntOrNull()
+                        ?.takeIf { it in 1..2 }
+                        ?: 1
+                    serverActiveSemester = serverSemester
+                    val sharedPref = requireContext().getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
+                    val localSemester = sharedPref.getInt("appActiveSemester", 1)
+                    if (serverSemester != localSemester) {
+                        sharedPref.edit()
+                            .putInt("appActiveSemester", serverSemester)
+                            .remove("cached_subjects")
+                            .remove("cached_sections")
+                            .apply()
+                        CourseRepository.clear(requireContext())
+                    }
                     fetchedSubjects = response.body() ?: emptyList()
                     checkAndMergeData()
                 } else {
@@ -322,8 +338,7 @@ class CoursesFragment : Fragment() {
 
         val sharedPref = requireContext().getSharedPreferences("VETSCHED_PREFS", Context.MODE_PRIVATE)
         val activeSemester = if (!isFromCache) {
-            subjects.firstOrNull()?.semester
-                ?.takeIf { it in 1..2 }
+            serverActiveSemester
                 ?: sharedPref.getInt("userSemester", 1).coerceIn(1, 2)
         } else {
             sharedPref.getInt("userSemester", 1).coerceIn(1, 2)

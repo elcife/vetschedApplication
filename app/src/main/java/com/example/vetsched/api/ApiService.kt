@@ -40,10 +40,10 @@ interface ApiService {
     fun updateYearLevel(@Body params: Map<String, String>): Call<AuthResponse>
 
     @GET("api.php?resource=subjects")
-    fun getSubjects(): Call<List<Subject>>
+    fun getSubjects(@Query("t") timestamp: Long = System.currentTimeMillis()): Call<List<Subject>>
 
     @GET("api.php?resource=sections")
-    fun getSections(): Call<List<Section>>
+    fun getSections(@Query("t") timestamp: Long = System.currentTimeMillis()): Call<List<Section>>
 
     @GET("plotting.php?resource=enrolled_courses")
     fun getEnrolledCourses(@Query("studentId") studentId: String): Call<List<com.example.vetsched.data.EnrolledCourse>>
