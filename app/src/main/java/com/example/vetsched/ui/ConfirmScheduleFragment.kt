@@ -137,15 +137,6 @@ class ConfirmScheduleFragment : Fragment() {
             if (result.success) {
                 Toast.makeText(context, "Enrolled in ${previewCourses[index].section}", Toast.LENGTH_SHORT).show()
                 findNavController().navigate(R.id.action_confirmScheduleFragment_to_scheduleFragment)
-            } else if (result.isFull) {
-                androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                    .setTitle("Section Full")
-                    .setMessage(result.message ?: "One or more selected sections are full. No enrollment changes were saved.")
-                    .setCancelable(false)
-                    .setPositiveButton("Choose Another Section") { _, _ ->
-                        findNavController().popBackStack(R.id.coursesFragment, false) || findNavController().navigateUp()
-                    }
-                    .show()
             } else {
                 Toast.makeText(context, result.message ?: "Enrollment failed", Toast.LENGTH_SHORT).show()
             }

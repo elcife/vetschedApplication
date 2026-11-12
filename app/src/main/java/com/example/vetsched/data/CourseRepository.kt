@@ -106,9 +106,7 @@ object CourseRepository {
 
 data class EnrollResult(
     val success: Boolean,
-    val message: String? = null,
-    val isFull: Boolean = false,
-    val fullOfferingIds: List<Int>? = null
+    val message: String? = null
 )
 
     fun enroll(course: EnrolledCourse, context: Context, callback: (EnrollResult) -> Unit) {
@@ -139,15 +137,6 @@ data class EnrollResult(
                         enrolledCourses.add(course)
                         saveToPrefs(context)
                         callback(EnrollResult(success = true))
-                    } else if (response.code() == 409) {
-                        val errorJson = response.errorBody()?.string()
-                        val parsed = try {
-                            Gson().fromJson(errorJson, com.example.vetsched.api.models.EnrollmentResponse::class.java)
-                        } catch (e: Exception) {
-                            null
-                        }
-                        val msg = parsed?.message ?: "One or more selected sections are full. No enrollment changes were saved."
-                        callback(EnrollResult(success = false, message = msg, isFull = true, fullOfferingIds = parsed?.offeringIds))
                     } else {
                         val errorJson = response.errorBody()?.string()
                         val parsed = try {

@@ -29,9 +29,6 @@ data class Section(
     val days: List<String>?,
     val instructor: String?,
     val room: String?,
-    val maxCapacity: Int,
-    val enrollmentCount: Int? = 0,
-    val remainingSeats: Int? = null,
     val subjectId: Int?,
     val offeringIds: List<Int>? = null,
     val classes: List<ClassComponent>? = null

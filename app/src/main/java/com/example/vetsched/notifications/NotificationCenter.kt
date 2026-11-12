@@ -87,7 +87,6 @@ object NotificationCenter {
         val name: String,
         val subjectId: Int?,
         val isOpen: Boolean,
-        val maxCapacity: Int,
         val classes: List<String>
     )
 
@@ -347,7 +346,6 @@ object NotificationCenter {
                     name = section.type,
                     subjectId = section.subjectId,
                     isOpen = section.isOpen,
-                    maxCapacity = section.maxCapacity,
                     classes = section.classes.orEmpty().map(::classSignature).sorted()
                 )
             }
@@ -450,8 +448,7 @@ object NotificationCenter {
                     ) + old.classes.flatMap(::scheduleEmphasis) +
                         section.classes.flatMap(::scheduleEmphasis)
                 )
-                old.name != section.name || old.subjectId != section.subjectId ||
-                    old.maxCapacity != section.maxCapacity -> changes += CourseUpdateNotification.create(
+                old.name != section.name || old.subjectId != section.subjectId -> changes += CourseUpdateNotification.create(
                     "Section updated",
                     "$courseName Section ${section.name} details were changed.",
                     now,

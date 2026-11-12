@@ -505,12 +505,8 @@ class CoursesFragment : Fragment() {
                         instructors.add(instructor)
                     }
                     
-                    val remaining = section.remainingSeats ?: section.maxCapacity
-                    sectionBinding.tvRemainingSeats.text = "$remaining seats left"
-
                     val isEnrolled = CourseRepository.isEnrolled(subject.code, sectionBinding.tvSectionName.text.toString(), requireContext())
                     val conflictingEnrolled = if (!isEnrolled) findConflictingEnrolledCourse(subject.code, section, requireContext()) else null
-                    val isFull = (section.remainingSeats ?: 1) <= 0
                     val isSubmitted = CourseRepository.isSubmitted
 
                     if (isEnrolled) {
@@ -533,13 +529,6 @@ class CoursesFragment : Fragment() {
                         sectionBinding.btnEnroll.text = "Closed"
                         sectionBinding.btnEnroll.isEnabled = false
                         sectionBinding.btnEnroll.setBackgroundColor(Color.LTGRAY)
-                        sectionBinding.cardSectionContainer.setBackgroundResource(R.drawable.bg_profile_card)
-                    } else if (isFull) {
-                        sectionBinding.btnEnroll.visibility = View.VISIBLE
-                        sectionBinding.tvConflictPill.visibility = View.GONE
-                        sectionBinding.btnEnroll.text = "Full"
-                        sectionBinding.btnEnroll.isEnabled = false
-                        sectionBinding.btnEnroll.setBackgroundColor(Color.parseColor("#BDBDBD"))
                         sectionBinding.cardSectionContainer.setBackgroundResource(R.drawable.bg_profile_card)
                     } else if (conflictingEnrolled != null) {
                         sectionBinding.btnEnroll.visibility = View.GONE
